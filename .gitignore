@@ -6,6 +6,7 @@ __pycache__
 lib
 bin
 include
+pyvenv.cfg
 
 logs.log
 config.json
