@@ -1,17 +1,5 @@
 certifi==2019.6.16
 chardet==3.0.4
-clarifai==2.6.1
-configparser==3.7.4
-enum34==1.1.6
-functools32==3.2.3.post2
-future==0.17.1
-futures==3.2.0
-googleapis-common-protos==1.6.0
-grpcio==1.21.1
 idna==2.8
-jsonschema==2.6.0
-protobuf==3.8.0
 requests==2.22.0
-six==1.12.0
-typing==3.7.4
 urllib3==1.25.3
