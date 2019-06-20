@@ -1,5 +1,6 @@
 .idea
 .DS_Store
+__pycache__
 .Python
 
 lib
@@ -8,3 +9,4 @@ include
 
 logs.log
 config.json
+requirements.txt
