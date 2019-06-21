@@ -1,23 +1,26 @@
 import logging
 
 from bot import Bot
+from database import Database
 from person import Person
 from recognizer import Recognizer
 
 
 class Controller:
+    min_similarity_coefficient = 0.5
     sign_up_init_status = '*sign_up_init*'
     sign_up_login_status = '*sign_up_login*'
     sign_in_init_status = '*sign_in_init*'
-    sign_in_login_status = '*sign_in_login*'
     singed_in_status = '*singed_in*'
     add_photo_status = '*add_photo*'
 
     def __init__(self, clarifai_token, telegram_token):
         self.recognizer = Recognizer(clarifai_token)
         self.bot = Bot(telegram_token)
-        self.persons = list()
+        self.database = Database()
+        self.persons = self.database.load()
         self.users = dict()
+        print("loaded", len(self.persons), "values")
 
     def start(self):
         offset = None
@@ -52,9 +55,7 @@ class Controller:
                         self.sign_up_login(user, text)
                     elif (status == self.sign_up_login_status) and (photos is not None):
                         self.sign_up_confirm(user, photos)
-                    elif (status == self.sign_in_init_status) and (text is not None):
-                        self.sign_in_login(user, text)
-                    elif (status == self.sign_in_login_status) and (photos is not None):
+                    elif (status == self.sign_in_init_status) and (photos is not None):
                         self.sign_in_confirm(user, photos)
                     elif (status == self.singed_in_status) and (text is not None) and (text.lower() == "add photo"):
                         self.add_photo_init(user)
@@ -69,7 +70,7 @@ class Controller:
 
     def sign_up_init(self, user):
         self.users[user] = (self.sign_up_init_status, '')
-        self.send_message(user, 'Enter your unique login (or type "exit" to go back)')
+        self.send_message(user, 'Send your photo (or type "exit" to go back)')
 
     def sign_up_login(self, user, text):
         if text.lower() == "exit":
@@ -86,7 +87,7 @@ class Controller:
         link = self.get_photo_link(user, photos)
         face = self.recognizer.recognize(link)
         person = Person(user, login, face)
-        self.persons.append(person)
+        self.add_person(person)
         self.send_message(user, 'Account created!')
         self.users[user] = (self.singed_in_status, login)
 
@@ -94,22 +95,29 @@ class Controller:
         self.users[user] = (self.sign_in_init_status, '')
         self.send_message(user, 'Enter your login (or type "exit" to go back)')
 
-    def sign_in_login(self, user, text):
-        if not self.persons.__contains__(text):
-            self.send_message(user, 'This login is not in our database, try again (or type "exit" to go back)')
-            return
-        self.users[user] = (self.sign_in_login_status, text)
-        self.send_message(user, 'Confirm by your photo (or type "exit" to go back)')
+    # def sign_in_login(self, user, text):
+    #     if not self.persons.__contains__(text):
+    #         self.send_message(user, 'This login is not in our database, try again (or type "exit" to go back)')
+    #         return
+    #     self.users[user] = (self.sign_in_login_status, text)
+    #     self.send_message(user, 'Confirm by your photo (or type "exit" to go back)')
 
     def sign_in_confirm(self, user, photos):
         try:
-            login = self.users[user][1]
             link = self.get_photo_link(user, photos)
             face = self.recognizer.recognize(link)
-            self.find_face(face)
-            self.users[user] = (self.singed_in_status, login)
+            person = self.find_face(face)
+            if person is None:
+                self.send_message(user, 'Cannot define your profile, please try again (or type "exit" to go back)')
+            else:
+                self.send_message(user, 'Welcome back, ' + person.login)
+                self.users[user] = (self.singed_in_status, person.login)
         except Exception as error:
             self.send_message(user, error.__str__())
+
+    def add_person(self, person):
+        self.persons.append(person)
+        self.database.add_person(person)
 
     def add_photo_init(self, user):
         login = self.users[user][1]
@@ -122,11 +130,14 @@ class Controller:
         face = self.recognizer.recognize(link)
         index = self.persons.index(login)
         self.persons[index].add_face(face)
+        self.users[user] = (self.singed_in_status, login)
+        self.database.update_person(self.persons[index])
 
     def find_face(self, face):
-        for person in self.persons:
-            val = person.difference(face)
-            print(person.login, val)
+        val, person = min([(person.difference(face), person) for person in self.persons])
+        if val < self.min_similarity_coefficient:
+            return person
+        return None
 
     def get_photo_link(self, user, photos):
         self.send_message(user, '...')

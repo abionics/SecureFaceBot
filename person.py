@@ -9,7 +9,7 @@ class Person:
     max_property_difference = 0.05
 
     def __init__(self, uid, login, face: Face):
-        self.id = uid
+        self.uid = uid
         self.login = login
 
         self.vectors = [face.vector]
@@ -50,12 +50,14 @@ class Person:
 
     def difference(self, face):
         min_sum = 100.0
+        print(self.login, ', vectors:', len(self.vectors))
         for vector in self.vectors:
             local_sum = 0
             for i in range(self.vector_size):
                 local_sum += self.weight[i] * math.pow(vector[i] - face.vector[i], 2)
             if local_sum < min_sum:
                 min_sum = local_sum
+            print(self.login, local_sum)
         return min_sum
 
     def __eq__(self, other):
