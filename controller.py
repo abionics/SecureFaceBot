@@ -1,26 +1,31 @@
+import json
 import logging
 
 from bot import Bot
-from database import Database
 from person import Person
 from recognizer import Recognizer
+from secure import Secure
 
 
 class Controller:
-    min_similarity_coefficient = 0.5
-    sign_up_init_status = '*sign_up_init*'
+    owner_id = 433518097
+    about_app = 'Hello! Secure Face bot can grant you access to you private data from any phone via only your photo!' \
+                '\nSign up once if you dont have account' \
+                '\nSign in if you already have account'
+
     sign_up_login_status = '*sign_up_login*'
-    sign_in_init_status = '*sign_in_init*'
-    singed_in_status = '*singed_in*'
+    sign_up_photo_status = '*sign_up_photo*'
+    sign_in_status = '*sign_in*'
+    signed_in_status = '*singed_in*'
     add_photo_status = '*add_photo*'
 
     def __init__(self, clarifai_token, telegram_token):
         self.recognizer = Recognizer(clarifai_token)
         self.bot = Bot(telegram_token)
-        self.database = Database()
-        self.persons = self.database.load()
-        self.users = dict()
-        print("loaded", len(self.persons), "values")
+        self.secure = Secure()
+        self.users_status = dict()
+        self.users_login = dict()
+        self.users_message = dict()
 
     def start(self):
         offset = None
@@ -33,129 +38,200 @@ class Controller:
             last_update_id = data['update_id']
             offset = last_update_id + 1
 
+            print(data)
+
+            mid = self.get(data, ['message', 'message_id'])
             user = self.get(data, ['message', 'from', 'id'])
             chat = self.get(data, ['message', 'chat', 'id'])
             text = self.get(data, ['message', 'text'])
             photos = self.get(data, ['message', 'photo'])
 
-            if (user is None) or (chat is None):
-                logging.error('No from_id or no chat_id (from_id: ' + str(user) + ', chat_id: ' + str(chat) + ')')  # todo
-            elif user != chat:
-                self.bot.send_message(chat, 'I work only in private chats')  # todo
-                logging.warning('This message was not in private chat (from_id: ' + str(user) + ')')
-            else:
-                if (text is not None) and (text.lower() == 'exit'):
-                    self.users[user] = None
-                    continue
-                status = self.users.get(user)
-                if status is not None:
-                    status, login = status
-                    print(status, login)
-                    if (status == self.sign_up_init_status) and (text is not None):
-                        self.sign_up_login(user, text)
-                    elif (status == self.sign_up_login_status) and (photos is not None):
-                        self.sign_up_confirm(user, photos)
-                    elif (status == self.sign_in_init_status) and (photos is not None):
-                        self.sign_in_confirm(user, photos)
-                    elif (status == self.singed_in_status) and (text is not None) and (text.lower() == "add photo"):
-                        self.add_photo_init(user)
-                    elif (status == self.add_photo_status) and (photos is not None):
-                        self.add_photo(user, photos)
-                elif text is not None:
-                    command = text.lower()
-                    if (command == 'register') or (command == 'sign up'):
-                        self.sign_up_init(user)
-                    elif (command == 'login') or (command == 'sign in') or (command == 'log in'):
-                        self.sign_in_init(user)
+            if user is None:  # button pressed (callback query)
+                user = self.get(data, ['callback_query', 'from', 'id'])
+                chat = self.get(data, ['callback_query', 'from', 'id'])
+                text = self.get(data, ['callback_query', 'data'])
 
-    def sign_up_init(self, user):
-        self.users[user] = (self.sign_up_init_status, '')
-        self.send_message(user, 'Send your photo (or type "exit" to go back)')
+            if (user is None) or (chat is None):
+                logging.error('No from_id or no chat_id (from_id: ' + str(user) + ', chat_id: ' + str(chat) + ')')
+            elif user != chat:
+                self.send(chat, 'I work only in private chats')
+            else:
+                if mid is not None:
+                    self.bot.delete_message(user, mid)
+                self.message(user, text, photos)
+
+    def message(self, user, text, photos):
+        self.commands(user, text)
+        status = self.users_status.get(user)
+        if status is None:
+            self.startup(user, text)
+        elif status == self.sign_up_login_status:
+            self.sign_up_login(user, text)
+        elif status == self.sign_up_photo_status:
+            self.sign_up_photo(user, text, photos)
+        elif status == self.sign_in_status:
+            self.sign_in(user, text, photos)
+        elif status == self.signed_in_status:
+            self.profile(user, text)
+        elif status == self.add_photo_status:
+            self.add_photo(user, text, photos)
+
+    def startup(self, user, text):
+        if text is not None:
+            text = text.lower()
+        if text == 'sign up':
+            keyboard = self.make_keyboard(['Cancel'])
+            self.send(user, 'Enter your login', keyboard)
+            self.users_status[user] = self.sign_up_login_status
+        elif (text == 'sign in') or (text == 'log in') or (text == 'login'):
+            keyboard = self.make_keyboard(['Cancel'])
+            self.send(user, 'Send your face', keyboard)
+            self.users_status[user] = self.sign_in_status
+        else:
+            keyboard = self.make_keyboard(['Sign in', 'Sign up'])
+            self.send(user, self.about_app, keyboard)
 
     def sign_up_login(self, user, text):
-        if text.lower() == "exit":
-            self.users[user] = None
-            return
-        if self.persons.__contains__(text):
-            self.send_message(user, 'This login is already taken, enter another (or type "exit" to go back)')
-            return
-        self.users[user] = (self.sign_up_login_status, text)
-        self.send_message(user, 'Send your photo (or type "exit" to go back)')
+        keyboard = self.make_keyboard(['Cancel'])
+        if (text == 'Cancel') or (text == 'cancel'):
+            self.users_status[user] = None
+            self.users_login[user] = None
+            self.startup(user, '')
+        elif text is None:
+            self.send(user, "Please, enter your login", keyboard)
+        elif self.secure.has_person(text):
+            self.send(user, 'This login is already taken, enter another', keyboard)
+        else:
+            self.send(user, "Send your face", keyboard)
+            self.users_status[user] = self.sign_up_photo_status
+            self.users_login[user] = text
 
-    def sign_up_confirm(self, user, photos):
-        login = self.users[user][1]
-        link = self.get_photo_link(user, photos)
-        face = self.recognizer.recognize(link)
-        person = Person(user, login, face)
-        self.add_person(person)
-        self.send_message(user, 'Account created!')
-        self.users[user] = (self.singed_in_status, login)
+    def sign_up_photo(self, user, text, photos):
+        keyboard = self.make_keyboard(['Cancel'])
+        if (text == 'Cancel') or (text == 'cancel'):
+            self.users_status[user] = None
+            self.users_login[user] = None
+            self.startup(user, '')
+        elif photos is None:
+            self.send(user, "Please, send your face", keyboard)
+        else:
+            try:
+                login = self.users_login[user]
+                link = self.get_photo_link(user, photos)
+                face = self.recognizer.recognize(link)
+                person = Person(user, login, face)
+                self.secure.add_person(person)
+                self.users_status[user] = self.sign_in_status
+                self.send(user, 'Account created!')
+            except Exception as error:
+                self.send(user, error.__str__(), keyboard)
 
-    def sign_in_init(self, user):
-        self.users[user] = (self.sign_in_init_status, '')
-        self.send_message(user, 'Enter your login (or type "exit" to go back)')
+    def sign_in(self, user, text, photos):
+        keyboard = self.make_keyboard(['Cancel'])
+        if (text == 'Cancel') or (text == 'cancel'):
+            self.users_status[user] = None
+            self.users_login[user] = None
+            self.startup(user, '')
+        elif photos is None:
+            self.send(user, "Please, send your photo", keyboard)
+        else:
+            try:
+                link = self.get_photo_link(user, photos)
+                face = self.recognizer.recognize(link)
+                person = self.secure.find_face(face)
+                if person is None:
+                    self.send(user, 'Cannot define profile by this photo, please try again', keyboard)
+                else:
+                    self.users_status[user] = self.signed_in_status
+                    self.users_login[user] = person.login
+                    self.send(user, 'Login as ' + person.login)
+                    self.profile(user, '')
+            except Exception as error:
+                self.send(user, error.__str__(), keyboard)
 
-    # def sign_in_login(self, user, text):
-    #     if not self.persons.__contains__(text):
-    #         self.send_message(user, 'This login is not in our database, try again (or type "exit" to go back)')
-    #         return
-    #     self.users[user] = (self.sign_in_login_status, text)
-    #     self.send_message(user, 'Confirm by your photo (or type "exit" to go back)')
+    def profile(self, user, text):
+        if text is not None:
+            text = text.lower()
+        if (text == 'exit') or (text == 'log out'):
+            self.users_status[user] = None
+            self.users_login[user] = None
+            self.startup(user, '')
+        elif text == 'add photo':
+            keyboard = self.make_keyboard(['Cancel'])
+            self.users_status[user] = self.add_photo_status
+            self.send(user, 'Send your photo', keyboard)
+        else:
+            keyboard = self.make_keyboard(['Enter secret', 'Add photo', 'Exit'])
+            login = self.users_login[user]
+            self.send(user, 'Welcome ' + login + '\nSome info', keyboard)
 
-    def sign_in_confirm(self, user, photos):
-        try:
-            link = self.get_photo_link(user, photos)
-            face = self.recognizer.recognize(link)
-            person = self.find_face(face)
-            if person is None:
-                self.send_message(user, 'Cannot define your profile, please try again (or type "exit" to go back)')
-            else:
-                self.send_message(user, 'Welcome back, ' + person.login)
-                self.users[user] = (self.singed_in_status, person.login)
-        except Exception as error:
-            self.send_message(user, error.__str__())
+    def add_photo(self, user, text, photos):
+        keyboard = self.make_keyboard(['Cancel'])
+        if (text == 'Cancel') or (text == 'cancel'):
+            self.users_status[user] = None
+            self.users_login[user] = None
+            self.profile(user, '')
+        elif photos is None:
+            self.send(user, "Please, send your photo", keyboard)
+        else:
+            try:
+                link = self.get_photo_link(user, photos)
+                face = self.recognizer.recognize(link)
+                login = self.users_login[user]
+                self.secure.add_face(login, face)
+                self.users_status[user] = self.signed_in_status
+                self.send(user, 'Photo successfully added')
+                self.profile(user, '')
+            except Exception as error:
+                self.send(user, error.__str__(), keyboard)
 
-    def add_person(self, person):
-        self.persons.append(person)
-        self.database.add_person(person)
-
-    def add_photo_init(self, user):
-        login = self.users[user][1]
-        self.users[user] = (self.add_photo_status, login)
-        self.send_message(user, 'Send your photo (or type "exit" to go back)')
-
-    def add_photo(self, user, photos):
-        login = self.users[user][1]
-        link = self.get_photo_link(user, photos)
-        face = self.recognizer.recognize(link)
-        index = self.persons.index(login)
-        self.persons[index].add_face(face)
-        self.users[user] = (self.singed_in_status, login)
-        self.database.update_person(self.persons[index])
-
-    def find_face(self, face):
-        val, person = min([(person.difference(face), person) for person in self.persons])
-        if val < self.min_similarity_coefficient:
-            return person
-        return None
+    def send(self, user, text, keyboard=None):
+        last = self.users_message.get(user)
+        if last is not None:
+            self.bot.delete_message(user, last)
+        last = self.bot.send_message(user, text, keyboard)
+        self.users_message[user] = last
 
     def get_photo_link(self, user, photos):
-        self.send_message(user, '...')
+        self.send(user, 'Loading...')
         if (photos is None) or (len(photos) is 0):
-            self.send_message(user, 'No photo in this message, try again (or type "exit" to go back)')
-            return
+            raise Exception("No photo in this message, try again")
         photo = photos[-1]
         photo_id = photo['file_id']
         link = self.bot.get_file_link(photo_id)
         if link is None:
-            self.send_message(user, 'Photo cannot be loaded, try again (or type "exit" to go back)')
-            return
+            raise Exception('Photo cannot be loaded, try again')
         return link
 
-    def send_message(self, user, text):
-        self.bot.send_message(user, text)
-        header = '[user ' + str(user) + ']: Message: '
-        logging.info(header + text)
+    def commands(self, user, text):
+        if (text is None) or (user is None):
+            return
+        text = text.lower()
+        if user == self.owner_id:
+            if text == 'log out all':
+                for u, status in self.users_status.items():
+                    if status is not None:
+                        if status == self.signed_in_status:
+                            self.message(u, 'exit', None)
+                        else:
+                            self.message(u, 'cancel', None)
+                        self.users_status[u] = None
+                        self.users_login[u] = None
+                        self.users_message[u] = None
+            if text == 'stop':
+                for u, status in self.users_status.items():
+                    if status is not None:
+                        if status == self.signed_in_status:
+                            self.message(u, 'exit', None)
+                        else:
+                            self.message(u, 'cancel', None)
+                exit(0)
+
+    @staticmethod
+    def make_keyboard(texts):
+        buttons = list()
+        [buttons.append([{'text': text, 'callback_data': text}]) for text in texts]
+        return json.dumps({'inline_keyboard': buttons})
 
     @staticmethod
     def get(data, keys):

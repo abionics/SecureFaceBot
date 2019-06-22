@@ -50,7 +50,7 @@ class Person:
 
     def difference(self, face):
         min_sum = 100.0
-        print(self.login, ', vectors:', len(self.vectors))
+        print(self.login, ' has vectors:', len(self.vectors))
         for vector in self.vectors:
             local_sum = 0
             for i in range(self.vector_size):

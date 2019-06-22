@@ -1,3 +1,4 @@
+import json
 import logging
 
 import requests
@@ -43,23 +44,26 @@ class Bot:
         link = resp.json()["result"]["file_path"]
         return self.api_files_url + link
 
-    def send_message(self, chat_id, text):
-        params = {'chat_id': chat_id, 'text': text}
+    def send_message(self, chat_id, text, keyboard):
+        params = {'chat_id': chat_id, 'text': text, 'reply_markup': keyboard}
         method = 'sendMessage'
         resp = requests.post(self.api_url + method, params)
-        return resp
+        return resp.json()['result']['message_id']
+
+    def delete_message(self, chat_id, message_id):
+        params = {'chat_id': chat_id, 'message_id': message_id}
+        method = 'deleteMessage'
+        requests.post(self.api_url + method, params)
 
     def kick(self, chat_id, user_id):
         method = 'kickChatMember'
         params = {'chat_id': chat_id, 'user_id': user_id}
-        resp = requests.get(self.api_url + method, params)
-        print('kicked:', resp)
+        requests.post(self.api_url + method, params)
 
     def send_photo(self, chat_id, photo):
         method = 'sendPhoto'
         params = {'chat_id': chat_id, 'photo': photo}
-        resp = requests.get(self.api_url + method, params)
-        print('send photo:', resp)
+        requests.post(self.api_url + method, params)
 
     def delete_webhook(self):
         method = 'deleteWebhook'

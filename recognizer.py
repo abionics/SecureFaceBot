@@ -39,8 +39,8 @@ class Recognizer:
     def get_region(response):
         data = response["outputs"][0]["data"]
         if not data.__contains__("regions"):
-            raise Exception("There is no face on image")
+            raise Exception("There is no face on image, try again")
         regions = data["regions"]
         if len(regions) is not 1:
-            raise Exception("You need only one face on image (you have " + str(len(regions)) + ")")
+            raise Exception("You need only one face on image (you have " + str(len(regions)) + "), try again")
         return regions[0]
