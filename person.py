@@ -1,3 +1,4 @@
+import logging
 import math
 
 from face import Face
@@ -48,16 +49,15 @@ class Person:
                 max_diff = self.max_property_difference
             self.weight[i] = 1.5 * (1.0 - max_diff / self.max_property_difference)
 
-    def difference(self, face):
-        min_sum = 100.0
-        print(self.login, ' has vectors:', len(self.vectors))
+    def difference(self, face, log_user):  # log_user only for logging
+        min_sum = 1024.0
         for vector in self.vectors:
             local_sum = 0
             for i in range(self.vector_size):
                 local_sum += self.weight[i] * math.pow(vector[i] - face.vector[i], 2)
             if local_sum < min_sum:
                 min_sum = local_sum
-            print(self.login, local_sum)
+            logging.info('[user ' + str(log_user) + ']: Compare face: ' + self.login + ': ' + str(local_sum))
         return min_sum
 
     def __eq__(self, other):

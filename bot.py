@@ -1,4 +1,3 @@
-import json
 import logging
 
 import requests
@@ -7,33 +6,22 @@ import requests
 class Bot:
     def __init__(self, token):
         self.token = token
-        self.api_url = "https://api.telegram.org/bot{}/".format(token)
-        self.api_files_url = "https://api.telegram.org/file/bot{}/".format(token)
+        self.api_url = 'https://api.telegram.org/bot{}/'.format(token)
+        self.api_files_url = 'https://api.telegram.org/file/bot{}/'.format(token)
+        self.offset = None
 
-    def get_updates(self, offset=None, timeout=100):
+    def get_updates(self, timeout=100):
         method = 'getUpdates'
-        params = {'timeout': timeout, 'offset': offset}
+        params = {'timeout': timeout, 'offset': self.offset}
         resp = requests.get(self.api_url + method, params)
         if resp.json().__contains__('result'):
             result_json = resp.json()['result']
+            self.offset = result_json[-1]['update_id'] + 1
             return result_json
         else:
-            logging.critical("Response error " + resp.json().__str__())
-            print("Response error" + resp.json().__str__())
+            logging.critical('Response error ' + resp.json().__str__())
+            print('Response error' + resp.json().__str__())
             self.delete_webhook()
-
-    def get_last_update(self):
-        get_result = self.get_updates()
-
-        if len(get_result) > 0:
-            last_update = get_result[-1]
-        else:
-            try:
-                last_update = get_result[len(get_result)]
-            except Exception:
-                print('last_update index out of range')
-                last_update = ''
-        return last_update
 
     def get_file_link(self, file_id, timeout=1000):
         params = {'file_id': file_id, 'timeout': timeout}
@@ -41,11 +29,11 @@ class Bot:
         resp = requests.get(self.api_url + method, params)
         if resp.status_code is not 200:
             return None
-        link = resp.json()["result"]["file_path"]
+        link = resp.json()['result']['file_path']
         return self.api_files_url + link
 
-    def send_message(self, chat_id, text, keyboard):
-        params = {'chat_id': chat_id, 'text': text, 'reply_markup': keyboard}
+    def send_message(self, chat_id, text, parse_mode, keyboard):
+        params = {'chat_id': chat_id, 'text': text, 'parse_mode': parse_mode, 'reply_markup': keyboard}
         method = 'sendMessage'
         resp = requests.post(self.api_url + method, params)
         return resp.json()['result']['message_id']
@@ -68,4 +56,4 @@ class Bot:
     def delete_webhook(self):
         method = 'deleteWebhook'
         requests.post(self.api_url + method)
-        logging.warning("Webhook deleted")
+        logging.warning('Webhook deleted')

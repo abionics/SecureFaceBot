@@ -14,17 +14,17 @@ def get_token(name):
             if config.__contains__(name):
                 return config[name]
             else:
-                print("CRITICAL: cannot get token in config file " + name)
-                logging.critical("Cannot get token in config file " + name)
+                print('CRITICAL: cannot get token in config file ' + name)
+                logging.critical('Cannot get token in config file ' + name)
         else:
             if os.environ.__contains__(name):
                 return os.environ[name]
             else:
-                print("CRITICAL: cannot get token in OS environment " + name)
-                logging.critical("Cannot get token in OS environment " + name)
+                print('CRITICAL: cannot get token in OS environment ' + name)
+                logging.critical('Cannot get token in OS environment ' + name)
     except Exception as error:
-        print("CRITICAL: cannot get token, reason: " + error.__str__())
-        logging.critical("Cannot get token, reason: " + error.__str__())
+        print('CRITICAL: cannot get token, reason: ' + error.__str__())
+        logging.critical('Cannot get token, reason: ' + error.__str__())
 
 
 logging.basicConfig(filename='logs.log', level=logging.INFO)
