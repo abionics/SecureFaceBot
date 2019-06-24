@@ -16,6 +16,8 @@ class Bot:
         resp = requests.get(self.api_url + method, params)
         if resp.json().__contains__('result'):
             result_json = resp.json()['result']
+            if not result_json:
+                return []
             self.offset = result_json[-1]['update_id'] + 1
             return result_json
         else:
