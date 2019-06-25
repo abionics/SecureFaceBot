@@ -10,7 +10,7 @@ class Bot:
         self.api_files_url = 'https://api.telegram.org/file/bot{}/'.format(token)
         self.offset = None
 
-    def get_updates(self, timeout=100):
+    def get_updates(self, timeout=1):
         method = 'getUpdates'
         params = {'timeout': timeout, 'offset': self.offset}
         resp = requests.get(self.api_url + method, params)

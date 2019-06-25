@@ -1,5 +1,6 @@
 import json
 import logging
+import time
 
 from bot import Bot
 from person import Person
@@ -259,6 +260,10 @@ class Controller:
             if text == 'stop':
                 self.commands(user, 'log out all')
                 exit(0)
+            if text == 'users':
+                self.send(user, self.secure.get_info().__str__(), None)
+                time.sleep(1)
+
 
     @staticmethod
     def make_keyboard(texts):

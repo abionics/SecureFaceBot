@@ -32,3 +32,6 @@ class Secure:
         if val < self.min_similarity_coefficient:
             return person
         return None
+
+    def get_info(self):
+        return [user.login for user in self.persons]
