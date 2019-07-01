@@ -9,8 +9,8 @@ class Secure:
     def __init__(self):
         self.database = Database()
         self.persons = self.database.load()
-        print('Loaded', len(self.persons), 'values from database')
-        logging.info('Loaded' + str(len(self.persons)) + 'values from database')
+        print('Loaded ' + str(len(self.persons)) + ' values from database')
+        logging.info('Loaded ' + str(len(self.persons)) + ' values from database')
 
     def add_person(self, person):
         self.persons.append(person)

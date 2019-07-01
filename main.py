@@ -27,7 +27,8 @@ def get_token(name):
         logging.critical('Cannot get token, reason: ' + error.__str__())
 
 
-logging.basicConfig(filename='logs.log', level=logging.INFO)
+logging.basicConfig(filename='logs.log', level=logging.INFO,
+                    format='%(asctime)s %(name)-30s %(levelname)-8s %(message)s')
 
 
 if __name__ == '__main__':
