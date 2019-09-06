@@ -1,3 +1,5 @@
+### Stopped now
+
 Telegram bot with indentification by face [@SecureFaceBot](https://telegram.me/SecureFaceBot).
 It allows to store files, which can be accessed from any telegram profile if your photo is match
 
